@@ -1,0 +1,8 @@
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+streamlit>=1.28.0
+geopandas>=0.14.0
+pyarrow>=14.0.1  # untuk membaca file parquet
+fiona>=1.9.0     # dependency untuk geopandas
+shapely>=2.0.0   # dependency untuk geopandas

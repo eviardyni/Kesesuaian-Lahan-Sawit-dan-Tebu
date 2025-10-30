@@ -20,8 +20,11 @@ st.set_page_config(page_title="Visualisasi Iklim & Kesesuaian", layout="wide")
 logo_url = "https://lms.bmkg.go.id/pluginfile.php/1/theme_mb2nl/logo/1725958993/logo%20lms.png"
 st.markdown("""
 <style>
-.block-container{padding-top:1.6rem;}
+.block-container{padding-top:3rem;}
 h2,h3{margin:0.6rem 0;}
+#MainMenu {visibility: visible;}
+.stDeployButton {display:none;}
+header {visibility: visible;}
 </style>
 """, unsafe_allow_html=True)
 st.markdown(f"""
