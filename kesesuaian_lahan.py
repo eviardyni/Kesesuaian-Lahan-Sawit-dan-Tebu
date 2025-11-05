@@ -29,7 +29,7 @@ st.markdown(f"""
   <img src="{logo_url}" alt="BMKG" style="max-height:90px; display:block; margin:0 auto;"/>
   <h2>Aktualisasi CPNS Golongan IIIA tahun 2025</h2>
   <h3>Direktorat Layanan Iklim Terapan</h3>
-  <h3>"PETA KESESUAIAN LAHAN DAN RISIKO IKLIM UNTUK SEKTOR PERKEBUNAN"</h3>
+  <h3>"PETA KESESUAIAN LAHAN"</h3>
 </div>
 <hr/>
 """, unsafe_allow_html=True)
