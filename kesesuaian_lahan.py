@@ -29,7 +29,7 @@ st.markdown(f"""
   <img src="{logo_url}" alt="BMKG" style="max-height:90px; display:block; margin:0 auto;"/>
   <h2>Aktualisasi CPNS Golongan IIIA tahun 2025</h2>
   <h3>Direktorat Layanan Iklim Terapan</h3>
-  <h3>"PETA KESESUAIAN LAHAN"</h3>
+  <h3>"PETA KESESUAIAN LAHAN DAN RISIKO IKLIM UNTUK SEKTOR PERKEBUNAN"</h3>
 </div>
 <hr/>
 """, unsafe_allow_html=True)
@@ -140,133 +140,6 @@ props_df = pd.DataFrame([f.get("properties", {}) for f in feats if f.get("proper
 if props_df.empty:
     st.error("GeoJSON tidak memiliki properti."); st.stop()
 
-# ================== RISK MODE (GeoJSON hasil df_bulanan pivot) ==================
-import re
-
-# --- ekstrak risk_*_YYYY-MM ke format long untuk plotting ---
-def risk_geojson_to_long(geo_fc):
-    feats = geo_fc.get("features", [])
-    rows = []
-    for f in feats:
-        g = f.get("geometry") or {}
-        if g.get("type") != "Point": 
-            continue
-        lon, lat = g.get("coordinates", [None, None])[:2]
-        if lon is None or lat is None:
-            continue
-
-        p = f.get("properties") or {}
-        # meta wilayah
-        prov = p.get("provinsi") or p.get("Provinsi") or p.get("PROVINSI") or p.get("PROV") or p.get("WADMPR")
-        kab  = p.get("kabkota") or p.get("KabKota") or p.get("KABKOTA")
-        kode = p.get("kode_wilayah") or p.get("KODE_WILAYAH")
-
-        # cari semua kolom risk_*_YYYY-MM
-        for k, v in p.items():
-            m = re.match(r"^(risk_[a-z_]+)_(\d{4}-\d{2})$", str(k))
-            if m:
-                base, ym = m.group(1), m.group(2)
-                try:
-                    val = float(v) if v is not None else np.nan
-                except Exception:
-                    val = np.nan
-                rows.append({
-                    "lon": float(lon), "lat": float(lat),
-                    "provinsi": prov, "kabkota": kab, "kode_wilayah": kode,
-                    "metric": base, "month": ym, "value": val
-                })
-    return pd.DataFrame(rows)
-
-risk_long = risk_geojson_to_long(geo)
-if risk_long.empty:
-    st.warning("GeoJSON tidak punya kolom risk_*_YYYY-MM."); st.stop()
-
-# --- sidebar kontrol risiko ---
-with st.sidebar:
-    st.header("Risiko Iklim (bulan)")
-    metric_opts = sorted(risk_long["metric"].unique().tolist())
-    sel_metric = st.selectbox("Metric", metric_opts, index=metric_opts.index("risk_intensity_mean") if "risk_intensity_mean" in metric_opts else 0)
-    month_opts = sorted(risk_long["month"].unique().tolist())
-    sel_month = st.selectbox("Bulan (YYYY-MM)", month_opts, index=0)
-
-# filter provinsi (pakai pilihan PROV_COL jika ada, fallback 'provinsi')
-prov_col_risk = PROV_COL if PROV_COL in (risk_long.columns) else "provinsi"
-if sel_prov:
-    risk_view = risk_long[(risk_long["metric"]==sel_metric)&(risk_long["month"]==sel_month)
-                          & (risk_long[prov_col_risk].astype(str).isin(sel_prov))]
-else:
-    risk_view = risk_long[(risk_long["metric"]==sel_metric)&(risk_long["month"]==sel_month)]
-
-if risk_view.empty:
-    st.info("Tidak ada titik untuk kombinasi filter tersebut."); st.stop()
-
-# --- skala warna kontinu (precompute ke kolom 'color') ---
-v = risk_view["value"].to_numpy(dtype=float)
-v = v[np.isfinite(v)]
-vmin, vmax = (float(np.nanmin(v)), float(np.nanmax(v))) if v.size else (0.0, 1.0)
-if np.isclose(vmin, vmax):
-    vmax = vmin + 1e-6
-
-def lerp(a, b, t): return a + (b - a) * t
-# palet: biru → hijau → kuning → merah
-PALET = [(33, 102, 172), (67, 162, 202), (123, 204, 196), (255, 255, 191), (253, 174, 97), (215, 25, 28)]
-def color_from_val(x):
-    if not np.isfinite(x): 
-        return [200, 200, 200, int(st.session_state.get("opacity", 0.8)*255)]
-    t = (x - vmin) / (vmax - vmin)
-    t = float(np.clip(t, 0.0, 1.0))
-    # pilih segmen
-    nseg = len(PALET) - 1
-    idx = min(int(t * nseg), nseg - 1)
-    tseg = (t * nseg) - idx
-    c0 = np.array(PALET[idx], dtype=float)
-    c1 = np.array(PALET[idx+1], dtype=float)
-    c  = (1 - tseg) * c0 + tseg * c1
-    return [int(c[0]), int(c[1]), int(c[2]), int(st.session_state.get("opacity", 0.8)*255)]
-
-risk_draw = risk_view.copy()
-risk_draw["color"] = risk_draw["value"].map(color_from_val)
-
-# --- viewstate auto (pakai titik terfilter risiko) ---
-center, zoom, span = compute_center_zoom(risk_draw.rename(columns={"lon":"lon","lat":"lat"}))
-if sel_prov and len(sel_prov)==1:
-    zoom = float(np.clip(zoom + 0.4, 3, 18))
-view_state = pdk.ViewState(latitude=center[0], longitude=center[1], zoom=zoom)
-
-# --- layer batas (pakai yang sudah disiapkan di atas) ---
-risk_layer = pdk.Layer(
-    "ScatterplotLayer",
-    risk_draw,
-    get_position="[lon, lat]",
-    get_fill_color="color",
-    pickable=True,
-    radius_min_pixels=st.session_state.get("radius", 2),
-    radius_max_pixels=st.session_state.get("radius", 2),
-    stroked=False,
-)
-
-layers = [risk_layer]
-if boundary_layer is not None:
-    layers.append(boundary_layer)
-
-# --- tooltip dengan nilai risiko ---
-tooltip = {
-    "html": (
-        f"<b>Metric</b>: {sel_metric}<br/>"
-        f"<b>Bulan</b>: {sel_month}<br/>"
-        "<b>Provinsi</b>: {provinsi}<br/>"
-        "<b>Kab/Kota</b>: {kabkota}<br/>"
-        "<b>Nilai</b>: {value}"
-    ),
-    "style": {"backgroundColor": "white", "color": "black"},
-}
-
-st.markdown(f"### Peta Risiko – {sel_metric} ({sel_month})")
-deck_risk = pdk.Deck(layers=layers, initial_view_state=view_state, map_style=None, tooltip=tooltip)
-st.pydeck_chart(deck_risk, use_container_width=True)
-
-# --- legenda sederhana ---
-st.caption(f"Rentang nilai: min={vmin:.3g}  max={vmax:.3g}")
 
 # ================== DETEKSI PROVINSI ==================
 CAND = ["provinsi","ADM_PROV","PROVINSI","Provinsi","PROV","WADMPR","NAMPROV","NAMA_PROP","NAMA_PROV"]
