@@ -1,4 +1,4 @@
-# Visualisasi Iklim & Kesesuaian Lahan Kelapa Sawit
+# Visualisasi Iklim & Kesesuaian Agroklimat Kelapa Sawit
 
 Aplikasi web interaktif untuk visualisasi data iklim dan analisis kesesuaian lahan untuk tanaman kelapa sawit. Bagian dari Aktualisasi CPNS Golongan IIIA tahun 2025, Direktorat Layanan Iklim Terapan BMKG.
 
