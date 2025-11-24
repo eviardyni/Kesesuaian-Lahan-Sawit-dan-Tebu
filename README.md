@@ -43,7 +43,7 @@ File input harus dalam format:
 
 1. Jalankan aplikasi dengan Streamlit:
    ```bash
-   streamlit run app.py
+   streamlit run Beranda.py
    ```
 
 2. Upload data:
